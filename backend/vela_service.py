@@ -19,7 +19,10 @@ PLUGIN_SLUG = 'serverkit-vela'
 #: below mirrors this repo's own file verbatim; the manifest row's provenance
 #: (source_repo/source_ref) is what lets the panel's apply clone it.
 VELA_REPO_URL = 'https://github.com/jhd3197/vela'
-VELA_REPO_BRANCH = 'main'
+# Pre-release pin: instances build from dev until the next vela release
+# carries the VELA_PORT container-listener fix (04209a6) onto main. Flip back
+# to 'main' for the registry release.
+VELA_REPO_BRANCH = 'dev'
 
 #: VELA_TRUSTED_PROXIES default: the docker bridge gateway, which is where a
 #: host nginx proxy appears from inside the container (see vela docs/SERVER.md).
