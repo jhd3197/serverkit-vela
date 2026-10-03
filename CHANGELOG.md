@@ -17,3 +17,14 @@
 - Manager page with instance cards, a create wizard (server picker, name,
   optional domain), an Open button per instance and a "Create your first
   desktop" walkthrough. Frontend ships as a prebuilt runtime ESM bundle.
+
+### Fixed
+
+- Creating a second instance no longer fails with
+  `Bind for 0.0.0.0:7700 failed: port is already allocated`. Each instance
+  now gets its own host port at create time, allocated through the panel's
+  own port allocator (the same seam template installs and WordPress
+  environments use), starting from Vela's default 7700. The port is baked
+  into the instance's stored manifest — so it stays stable across restarts,
+  redeploys and re-applies — and Vela listens on it inside the container via
+  `VELA_PORT`.

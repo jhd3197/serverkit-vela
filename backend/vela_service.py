@@ -150,6 +150,9 @@ def instance_view(instance, app=None, detail=False):
         'server_id': instance.get('server_id'),
         'server_name': instance.get('server_name'),
         'domain': instance.get('domain'),
+        # Instances created before per-instance port allocation carry no
+        # stored port; the app row (their manifest pinned 7700) is the truth.
+        'port': instance.get('port') or (app.port if app else None),
         'app_id': instance.get('app_id'),
         'project_id': instance.get('project_id'),
         'created_at': instance.get('created_at'),
@@ -226,7 +229,10 @@ def list_instance_views():
 
 #: The Vela deploy recipe, mirroring vela/serverkit.yaml verbatim with the
 #: project, service and disk names templated per instance. VELA_PUBLIC_ORIGIN
-#: and the domains block are only rendered when a domain is given.
+#: and the domains block are only rendered when a domain is given. The port is
+#: allocated per instance (see allocate_instance_port): the panel's deploy
+#: engine binds app.port on the host AND maps it to the same container port,
+#: so VELA_PORT tells Vela to listen on it inside the container.
 RECIPE_TEMPLATE = """\
 # yaml-language-server: $schema=https://serverkit.ai/serverkit-yaml.schema.json
 version: 1
@@ -236,12 +242,15 @@ services:
   - name: {slug}
     type: docker
     dockerfilePath: Dockerfile
-    port: 7700
+    port: {port}
     healthCheckPath: /api/health
     autoDeploy: false
     envVars:
       - key: VELA_DATA_DIR
         value: /data
+      # The port Vela listens on; matches the host binding ServerKit allocates.
+      - key: VELA_PORT
+        value: "{port}"
       # Set the exact browser address, e.g. https://vela.example.com (no slash).
       - key: VELA_PUBLIC_ORIGIN{origin_line}
       # IP of ServerKit's proxy as seen inside the container; see docs/SERVER.md.
@@ -275,12 +284,28 @@ class InstanceError(ValueError):
         self.status = status
 
 
-def build_recipe(slug, domain=None, trusted_proxies=DEFAULT_TRUSTED_PROXIES):
+def allocate_instance_port():
+    """One distinct host port per instance, through the panel's own allocator.
+
+    ``TemplateService._find_available_port`` is the seam template ``port``
+    variables and the WordPress environment provisioner already use: it skips
+    ports held by app rows (including recycle-bin tombstones), slot standby
+    ports, live docker mappings and bound sockets. Vela's default 7700 is the
+    preferred start, so the first instance keeps the documented port; the
+    admin-configured ``managed_app_base_port`` setting overrides it when set,
+    the same precedence template installs follow.
+    """
+    from app.services.template_service import TemplateService
+    start = TemplateService._managed_app_base_port() or 7700
+    return TemplateService._find_available_port(start)
+
+
+def build_recipe(slug, port, domain=None, trusted_proxies=DEFAULT_TRUSTED_PROXIES):
     """Render the per-instance serverkit.yaml text."""
     origin_line = f'\n        value: "https://{domain}"' if domain else ''
     domains_block = _DOMAINS_BLOCK.format(domain=domain, slug=slug) if domain else ''
     return RECIPE_TEMPLATE.format(
-        slug=slug, origin_line=origin_line,
+        slug=slug, port=port, origin_line=origin_line,
         trusted_proxies=trusted_proxies, domains_block=domains_block)
 
 
@@ -347,8 +372,12 @@ def create_instance(user, name, server_id=None, domain=None):
 
     server_key, server_name = _resolve_target(server_id)
 
+    # Allocate once, at create time: the port is baked into the stored
+    # manifest, so restarts, redeploys and drift-repair re-applies keep it.
+    port = allocate_instance_port()
+
     from app.services.manifest_spec_service import ManifestSpecService, ManifestError
-    recipe_text = build_recipe(slug, domain=host)
+    recipe_text = build_recipe(slug, port, domain=host)
     try:
         normalized = ManifestSpecService.normalize_text(recipe_text)
     except ManifestError as exc:  # pragma: no cover - the template is fixed
@@ -396,6 +425,7 @@ def create_instance(user, name, server_id=None, domain=None):
         'server_id': server_key or 'local',
         'server_name': server_name,
         'domain': host,
+        'port': port,
         'app_id': app.id if app else None,
         'project_id': project.id,
         'deploy_job_id': None,

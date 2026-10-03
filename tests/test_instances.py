@@ -85,6 +85,13 @@ class InstanceLifecycleTests(unittest.TestCase):
         self.mock_deploy = deploy_patch.start()
         self.addCleanup(apply_patch.stop)
         self.addCleanup(deploy_patch.stop)
+
+        # Port allocation seam: deterministic unless a test overrides it.
+        port_patch = mock.patch(
+            "app.services.template_service.TemplateService._find_available_port",
+            return_value=7700)
+        self.mock_port = port_patch.start()
+        self.addCleanup(port_patch.stop)
         self.addCleanup(self.ctx.pop)
 
     def _create(self, body=None):
@@ -122,6 +129,9 @@ class InstanceLifecycleTests(unittest.TestCase):
         self.assertEqual(service["dockerfile_path"], "Dockerfile")
         env = {var["key"]: var for var in service["env_vars"]}
         self.assertEqual(env["VELA_DATA_DIR"]["value"], "/data")
+        # Vela must listen on the same port the panel binds on the host.
+        self.assertEqual(env["VELA_PORT"]["value"], "7700")
+        self.assertEqual(instance["port"], 7700)
         self.assertEqual(env["VELA_PUBLIC_ORIGIN"]["value"],
                          "https://vela.example.com")
         self.assertEqual(env["VELA_INITIAL_PASSWORD"]["source"], "generate")
@@ -151,6 +161,44 @@ class InstanceLifecycleTests(unittest.TestCase):
         env = {var["key"]: var for var in service["env_vars"]}
         self.assertEqual(env["VELA_PUBLIC_ORIGIN"]["source"], "placeholder")
         self.assertEqual(normalized["domains"], [])
+
+    def test_back_to_back_instances_get_distinct_ports(self):
+        """The second instance must not reuse the first's host port (the live
+        bug: both rendered port 7700 and the second container failed to bind).
+        Asserted against the panel's allocation seam."""
+        self.mock_port.side_effect = [7700, 7701]
+
+        first = self._create({"name": "Home"})
+        second = self._create({"name": "Work"})
+        self.assertEqual(first.status_code, 201, first.get_json())
+        self.assertEqual(second.status_code, 201, second.get_json())
+
+        # One allocation per create, starting from Vela's preferred port.
+        self.assertEqual(self.mock_port.call_count, 2)
+        self.assertEqual(self.mock_port.call_args_list[0].args, (7700,))
+        self.assertEqual(self.mock_port.call_args_list[1].args, (7700,))
+
+        home = first.get_json()["instance"]
+        work = second.get_json()["instance"]
+        self.assertEqual(home["port"], 7700)
+        self.assertEqual(work["port"], 7701)
+
+        # Each rendered recipe carries its own port, in `port:` and VELA_PORT.
+        first_service = self.mock_apply.call_args_list[0].args[1]["services"][0]
+        second_service = self.mock_apply.call_args_list[1].args[1]["services"][0]
+        self.assertEqual(first_service["port"], 7700)
+        self.assertEqual(second_service["port"], 7701)
+        second_env = {var["key"]: var for var in second_service["env_vars"]}
+        self.assertEqual(second_env["VELA_PORT"]["value"], "7701")
+
+        # The port is pinned in each stored manifest, so redeploys and
+        # drift-repair re-applies keep it instead of re-allocating.
+        for slug, port in (("vela-home", 7700), ("vela-work", 7701)):
+            project = Project.query.filter_by(slug=slug).one()
+            row = ApplicationManifest.query.filter_by(project_id=project.id).one()
+            stored = row.get_normalized()["services"][0]
+            self.assertEqual(stored["port"], port)
+            self.assertIn(f"port: {port}", row.raw_text)
 
     # -- validation ----------------------------------------------------------
 

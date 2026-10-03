@@ -47,13 +47,17 @@ panel's own serverkit.yaml import path — no raw docker calls:
    `VELA_INITIAL_PASSWORD` into the **secret vault**, ensures the 4 GB
    `/data` disk and its daily backup policy (7 retained), and attaches the
    domain (vhost + DNS + certificate) when one is given.
-3. The build runs as a normal async deployment job
+3. Each instance gets its own host port, allocated at create time through the
+   panel's port allocator (starting from Vela's default 7700) and pinned in
+   the stored manifest, so restarts and redeploys keep it. Vela listens on
+   the same port inside the container via `VELA_PORT`.
+4. The build runs as a normal async deployment job
    (`DeploymentJobService.enqueue_app_deploy`), tracked on the instance and
    visible in the panel's Deploy Activity.
 
-Instance metadata (slug, display name, server, domain, managed-app id) lives
-in the extension's own plugin store; everything else is ordinary panel state
-you can inspect on the Apps, Domains, Backups and Secrets pages.
+Instance metadata (slug, display name, server, domain, port, managed-app id)
+lives in the extension's own plugin store; everything else is ordinary panel
+state you can inspect on the Apps, Domains, Backups and Secrets pages.
 
 `VELA_TRUSTED_PROXIES` defaults to `172.17.0.1` (the docker bridge gateway —
 where a host nginx proxy appears from inside the container). Adjust it in
