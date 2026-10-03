@@ -5,6 +5,7 @@
 // by vite.config and resolved to the panel's singletons via its import map.
 import css from './styles/vela.css?inline';
 import VelaPage from './components/VelaPage.jsx';
+import VelaInstancePage from './components/VelaInstancePage.jsx';
 
 // Translations. Registered against the PANEL's i18next singleton, additively
 // and under this extension's own `vela` namespace — never init() or
@@ -26,4 +27,4 @@ if (typeof document !== 'undefined' && !document.getElementById('serverkit-vela-
     document.head.appendChild(style);
 }
 
-export { VelaPage as VelaExtension };
+export { VelaPage as VelaExtension, VelaInstancePage as VelaInstanceExtension };

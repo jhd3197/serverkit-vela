@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+    DataTable,
     Modal,
+    Pill,
     emitWalkthroughSignal,
+    statusKind,
+    timeAgo,
     useConfirm,
+    useNavigate,
     useToast,
     useTranslation,
 } from 'serverkit-sdk';
@@ -13,14 +18,23 @@ const EMPTY_FORM = { server_id: 'local', name: '', domain: '' };
 // Statuses that mean "still coming up" — the list polls while any show.
 const TRANSIENT = new Set(['deploying', 'starting', 'restarting']);
 
-function statusClass(status) {
-    return `vela-ext-pill vela-ext-pill--${String(status || 'unknown').replace(':', '-')}`;
+// Live statuses arrive as e.g. "running:healthy"; the pill kind keys off the
+// base word (unknown bases read gray, per the panel's status table).
+function statusBase(status) {
+    return String(status || 'unknown').split(':')[0].trim();
+}
+
+function statusLabel(instance) {
+    return instance.status === 'deploying' && instance.deploy?.status
+        ? `${instance.status} (${instance.deploy.status})`
+        : instance.status;
 }
 
 export default function VelaPage() {
     const { t } = useTranslation();
     const toast = useToast();
     const { confirm } = useConfirm();
+    const navigate = useNavigate();
 
     const [instances, setInstances] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -136,14 +150,120 @@ export default function VelaPage() {
         }
     };
 
+    const renderActions = (instance) => {
+        const busy = busySlug === instance.slug;
+        const running = String(instance.status || '').startsWith('running');
+        const stopped = ['stopped', 'exited'].includes(instance.status);
+        // Row clicks navigate to the details page; action clicks must not.
+        const stop = (event) => event.stopPropagation();
+        return (
+            <div className="vela-ext-table__actions" onClick={stop}>
+                {instance.url && (
+                    <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        data-walkthrough="vela-open-desktop"
+                        onClick={() => openInstance(instance)}
+                    >
+                        {t('vela.card.open', 'Open')}
+                    </button>
+                )}
+                {stopped && (
+                    <button type="button" className="btn btn-ghost btn-sm" disabled={busy}
+                        onClick={() => handleAction(instance, 'start')}>
+                        {t('vela.card.start', 'Start')}
+                    </button>
+                )}
+                {running && (
+                    <>
+                        <button type="button" className="btn btn-ghost btn-sm" disabled={busy}
+                            onClick={() => handleAction(instance, 'restart')}>
+                            {t('vela.card.restart', 'Restart')}
+                        </button>
+                        <button type="button" className="btn btn-ghost btn-sm" disabled={busy}
+                            onClick={() => handleAction(instance, 'stop')}>
+                            {t('vela.card.stop', 'Stop')}
+                        </button>
+                    </>
+                )}
+                <button
+                    type="button"
+                    className="btn btn-danger btn-sm"
+                    disabled={busy}
+                    onClick={() => handleDelete(instance)}
+                >
+                    {t('vela.card.delete', 'Delete')}
+                </button>
+            </div>
+        );
+    };
+
+    const columns = [
+        {
+            key: 'name',
+            header: t('vela.table.name', 'Name'),
+            sortable: true,
+            hideable: false,
+            render: (instance) => <strong>{instance.name}</strong>,
+        },
+        {
+            key: 'server',
+            header: t('vela.table.server', 'Server'),
+            sortable: true,
+            sortValue: (instance) => instance.server_name || instance.server_id,
+            render: (instance) => instance.server_name || instance.server_id,
+        },
+        {
+            key: 'domain',
+            header: t('vela.table.domain', 'Domain'),
+            sortable: true,
+            render: (instance) => (instance.url ? (
+                <a
+                    href={instance.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(event) => event.stopPropagation()}
+                >
+                    {instance.domain || instance.url}
+                </a>
+            ) : (instance.domain || '—')),
+        },
+        {
+            key: 'status',
+            header: t('vela.table.status', 'Status'),
+            sortable: true,
+            render: (instance) => (
+                <Pill kind={statusKind(statusBase(instance.status))}>
+                    {statusLabel(instance)}
+                </Pill>
+            ),
+        },
+        {
+            key: 'port',
+            header: t('vela.table.port', 'Port'),
+            sortable: true,
+        },
+        {
+            key: 'created_at',
+            header: t('vela.table.created', 'Created'),
+            sortable: true,
+            render: (instance) => (instance.created_at ? timeAgo(instance.created_at) : '—'),
+        },
+        {
+            key: 'actions',
+            header: '',
+            sortable: false,
+            hideable: false,
+            className: 'text-right',
+            render: renderActions,
+        },
+    ];
+
     return (
         <div className="vela-ext">
             <div className="vela-ext__header">
                 <div>
                     <h2 className="vela-ext__title">{t('vela.page.title', 'Vela')}</h2>
-                    <p className="vela-ext__subtitle">
-                        {t('vela.page.subtitle', 'Named Vela instances, each with its own container, disk, domain and login.')}
-                    </p>
                 </div>
                 <div className="vela-ext-card__actions">
                     <button type="button" className="btn btn-ghost" onClick={() => load()}>
@@ -181,76 +301,16 @@ export default function VelaPage() {
             )}
 
             {!loading && !error && instances.length > 0 && (
-                <div className="vela-ext__grid">
-                    {instances.map((instance) => {
-                        const busy = busySlug === instance.slug;
-                        const running = String(instance.status || '').startsWith('running');
-                        const stopped = ['stopped', 'exited'].includes(instance.status);
-                        return (
-                            <div className="card vela-ext-card" key={instance.slug}>
-                                <div className="vela-ext-card__row">
-                                    <div className="vela-ext-card__meta">
-                                        <strong>{instance.name}</strong>
-                                        <span className="vela-ext__muted">
-                                            {instance.server_name || instance.server_id}
-                                            {instance.domain ? ` · ${instance.domain}` : ''}
-                                        </span>
-                                    </div>
-                                    <span className={statusClass(instance.status)}>
-                                        {instance.status === 'deploying' && instance.deploy?.status
-                                            ? `${instance.status} (${instance.deploy.status})`
-                                            : instance.status}
-                                    </span>
-                                </div>
-                                {instance.url && (
-                                    <div className="vela-ext-card__row">
-                                        <a href={instance.url} target="_blank" rel="noopener noreferrer">
-                                            {instance.url}
-                                        </a>
-                                    </div>
-                                )}
-                                <div className="vela-ext-card__actions">
-                                    <button
-                                        type="button"
-                                        className="btn btn-primary btn-sm"
-                                        data-walkthrough="vela-open-desktop"
-                                        disabled={!instance.url}
-                                        title={instance.url ? undefined : t('vela.card.noUrl', 'Attach a domain to open this desktop')}
-                                        onClick={() => openInstance(instance)}
-                                    >
-                                        {t('vela.card.open', 'Open')}
-                                    </button>
-                                    {stopped && (
-                                        <button type="button" className="btn btn-ghost btn-sm" disabled={busy}
-                                            onClick={() => handleAction(instance, 'start')}>
-                                            {t('vela.card.start', 'Start')}
-                                        </button>
-                                    )}
-                                    {running && (
-                                        <>
-                                            <button type="button" className="btn btn-ghost btn-sm" disabled={busy}
-                                                onClick={() => handleAction(instance, 'restart')}>
-                                                {t('vela.card.restart', 'Restart')}
-                                            </button>
-                                            <button type="button" className="btn btn-ghost btn-sm" disabled={busy}
-                                                onClick={() => handleAction(instance, 'stop')}>
-                                                {t('vela.card.stop', 'Stop')}
-                                            </button>
-                                        </>
-                                    )}
-                                    <button
-                                        type="button"
-                                        className="btn btn-danger btn-sm"
-                                        disabled={busy}
-                                        onClick={() => handleDelete(instance)}
-                                    >
-                                        {t('vela.card.delete', 'Delete')}
-                                    </button>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
+                <DataTable
+                    columns={columns}
+                    data={instances}
+                    keyField="slug"
+                    storageKey="serverkit-table-vela"
+                    onRowClick={(instance) => navigate(`/vela/${instance.slug}`)}
+                    keyboardNav
+                    emptyTitle={t('vela.empty.title', 'No desktops yet')}
+                    emptyMessage={t('vela.empty.message', 'No desktops yet — create your first Vela. The "Create your first desktop" walkthrough walks you through it.')}
+                />
             )}
 
             <Modal

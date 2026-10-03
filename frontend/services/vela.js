@@ -20,6 +20,13 @@ export const velaApi = {
         { method: 'POST' },
     ),
 
+    // Rename and/or change the attached domain: {name?, domain?}. An empty
+    // domain detaches it.
+    updateInstance: (slug, body) => api.request(
+        `${BASE_PATH}/${encodeURIComponent(slug)}`,
+        { method: 'PATCH', body },
+    ),
+
     // The backend also accepts a JSON body; the query form keeps the call in
     // the shape every api.request DELETE in the panel already uses.
     deleteInstance: (slug) => api.request(

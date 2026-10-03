@@ -28,6 +28,10 @@ VELA_REPO_BRANCH = 'dev'
 #: host nginx proxy appears from inside the container (see vela docs/SERVER.md).
 DEFAULT_TRUSTED_PROXIES = '172.17.0.1'
 
+#: Sentinel for update_instance's ``domain`` argument: distinguishes "the
+#: caller did not pass a domain" from an explicit detach (``None``/``''``).
+DOMAIN_UNSET = object()
+
 _STORE_KEY = 'instances'
 _SLUG_RE = re.compile(r'^[a-z0-9][a-z0-9-]{0,61}$')
 _HOST_RE = re.compile(r'^(?=.{1,253}$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?'
@@ -521,3 +525,165 @@ def app_action(user, instance, action):
     except lifecycle.ApplicationLifecycleError as exc:
         raise InstanceError(str(exc))
     return app
+
+
+# ---------------------------------------------------------------------------
+# Update: rename / attach / change / detach the domain
+# ---------------------------------------------------------------------------
+
+def update_instance(user, instance, name=None, domain=DOMAIN_UNSET):
+    """Rename the display name and/or change the attached domain.
+
+    Rename touches the display name only: the registry entry and the owning
+    Project's name. The slug — and therefore the app, container and disk
+    names — never changes after create.
+
+    A domain change re-renders and re-applies the stored recipe, drops the
+    now-stale Domain rows and redeploys so the new VELA_PUBLIC_ORIGIN lands
+    in the container. ``domain=None`` (or an empty value) DETACHES.
+
+    Returns ``(instance, changed)`` where ``changed`` maps each updated field
+    to its new value (audit-log material).
+    """
+    new_domain = DOMAIN_UNSET
+    if domain is not DOMAIN_UNSET:
+        host = normalize_domain(domain)
+        if domain and str(domain).strip() and not host:
+            raise InstanceError('Invalid domain')
+        if host and not valid_domain(host):
+            raise InstanceError(f'Invalid domain: {host}')
+        if host != instance.get('domain'):
+            new_domain = host
+
+    display = None
+    if name is not None:
+        display = str(name).strip()
+        if not display:
+            raise InstanceError('A non-empty name is required')
+
+    changed = {}
+    if new_domain is not DOMAIN_UNSET:
+        _apply_domain_change(user, instance, new_domain)
+        instance['domain'] = new_domain
+        changed['domain'] = new_domain
+
+    if display is not None and display != instance.get('name'):
+        instance['name'] = display
+        project = None
+        if instance.get('project_id'):
+            from app.models.project import Project
+            project = Project.query.get(instance['project_id'])
+        if project is not None:
+            project.name = f'Vela: {display}'
+            db.session.commit()
+        changed['name'] = display
+
+    if changed:
+        put_instance(instance)
+    return instance, changed
+
+
+def _apply_domain_change(user, instance, host):
+    """Re-render the recipe with ``host`` (None = detached), re-apply it and
+    redeploy. The manifest is an OVERLAY: re-applying attaches the newly
+    declared domain and upserts VELA_PUBLIC_ORIGIN (the apply's set_env step
+    updates literal values that drifted), but it never removes live Domain
+    rows no longer declared — _remove_stale_domains does that below."""
+    slug = instance['slug']
+    app = _load_app(instance)
+    port = instance.get('port') or (app.port if app else None)
+    if port is None:
+        raise InstanceError(
+            'This instance has no port on record — delete it and create it '
+            'again', status=409)
+
+    project = None
+    if instance.get('project_id'):
+        from app.models.project import Project
+        project = Project.query.get(instance['project_id'])
+    if project is None:
+        raise InstanceError(
+            'The managed project for this instance is gone — delete the '
+            'instance and create it again', status=409)
+
+    from app.services.manifest_spec_service import ManifestSpecService, ManifestError
+    recipe_text = build_recipe(slug, port, domain=host)
+    try:
+        normalized = ManifestSpecService.normalize_text(recipe_text)
+    except ManifestError as exc:  # pragma: no cover - the template is fixed
+        raise InstanceError(f'Recipe failed to validate: {"; ".join(exc.errors)}')
+
+    from app.services.manifest_persistence_service import ManifestPersistenceService
+    manifest_row = ManifestPersistenceService.store_manifest(
+        project_id=project.id,
+        normalized=normalized,
+        raw_text=recipe_text,
+        source_repo=VELA_REPO_URL,
+        source_ref=VELA_REPO_BRANCH,
+    )
+    db.session.commit()
+
+    from app.services.manifest_apply_service import ManifestApplyService
+    result = ManifestApplyService.apply(
+        project, normalized, user_id=user.id, manifest_row=manifest_row)
+
+    if result.get('refused'):
+        message = (result.get('blockers') or [{}])[0].get('message') \
+            or 'The panel refused this deploy'
+        raise InstanceError(message)
+    if not result.get('success'):
+        failure = next((r for r in result.get('results', [])
+                        if r.get('status') == 'error'), {})
+        raise InstanceError(
+            f'The manifest apply failed: {failure.get("error") or "unknown step"}',
+            status=502)
+
+    if app is None:
+        return
+
+    # On detach the recipe renders VELA_PUBLIC_ORIGIN as a placeholder, which
+    # the apply deliberately leaves alone — remove the stale literal through
+    # the panel's env service so the container matches the no-domain state.
+    if host is None:
+        from app.services.env_service import EnvService
+        EnvService.delete_env_var(app.id, 'VELA_PUBLIC_ORIGIN', user_id=user.id)
+
+    _remove_stale_domains(user, app, keep=host)
+
+    from app.services.deployment_job_service import DeploymentJobService
+    deploy = DeploymentJobService.enqueue_app_deploy(
+        app, user_id=user.id, trigger='update')
+    if deploy.get('success'):
+        instance['deploy_job_id'] = deploy.get('job_id')
+    else:
+        log.warning('%s: instance %s updated but redeploy enqueue failed: %s',
+                    PLUGIN_SLUG, slug, deploy.get('error'))
+
+
+def _remove_stale_domains(user, app, keep):
+    """Soft-delete the app's live Domain rows other than ``keep`` and
+    republish the vhost — the same removal seam the panel's own
+    ``DELETE /api/v1/domains/<id>`` route runs (tombstone first so the
+    recycle bin can hand the row back, then one vhost rewrite)."""
+    from app.models.domain import Domain
+    stale = [domain for domain
+             in Domain.query_active().filter_by(application_id=app.id).all()
+             if domain.name != keep]
+    if not stale:
+        return
+    for domain in stale:
+        domain.soft_delete(user_id=user.id)
+    db.session.commit()
+    try:
+        remaining = Domain.query_active().filter_by(application_id=app.id).count()
+        if remaining:
+            from app.services.site_domain_service import SiteDomainService
+            SiteDomainService.write_app_vhost(app)
+        elif app.app_type == 'docker' and app.port:
+            # Nothing left to serve: take the site down entirely.
+            from app.services.nginx_service import NginxService
+            NginxService.disable_site(app.name)
+            NginxService.delete_site(app.name)
+    except Exception as exc:  # host-side nginx work is best-effort here
+        log.warning('%s: vhost republish after domain removal failed: %s',
+                    PLUGIN_SLUG, exc)

@@ -4,6 +4,14 @@
 
 ### Added
 
+- Instance details page at `/vela/<slug>`: everything about one instance
+  (status, URL, server, domain, port, deploy job, disk, backup policy and
+  the first-start password's vault reference) plus Edit — rename the display
+  name, and change or remove the attached domain. A domain change re-renders
+  and re-applies the instance's `serverkit.yaml`, removes the stale Domain
+  rows through the panel's own domain-removal seam and redeploys so the new
+  `VELA_PUBLIC_ORIGIN` lands in the container. Backed by
+  `PATCH /api/v1/vela/instances/<slug>` (developer role).
 - Initial release: Vela as a first-class ServerKit extension. Create, list
   and manage named Vela instances from a new Vela page in the panel nav;
   each instance deploys from the official Vela `serverkit.yaml` recipe as a
@@ -14,9 +22,10 @@
   scoped API key (`servers:read`); create, delete and start/stop/restart
   require the developer role. Deletes are confirm-gated and run through the
   panel's suspend/purge lifecycle.
-- Manager page with instance cards, a create wizard (server picker, name,
-  optional domain), an Open button per instance and a "Create your first
-  desktop" walkthrough. Frontend ships as a prebuilt runtime ESM bundle.
+- Manager page with a sortable instance table (row click opens the details
+  page), a create wizard (server picker, name, optional domain), an Open
+  button per instance and a "Create your first desktop" walkthrough.
+  Frontend ships as a prebuilt runtime ESM bundle.
 
 ### Fixed
 

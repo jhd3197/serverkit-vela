@@ -1,5 +1,5 @@
-/* Vela extension — layout-only styles. Buttons, cards, forms, pills and modal
-   chrome come from the panel's own design system classes at runtime. */
+/* Vela extension — layout-only styles. Buttons, cards, forms, pills, tables
+   and modal chrome come from the panel's own design system at runtime. */
 
 .vela-ext__header {
     display: flex;
@@ -13,11 +13,6 @@
     margin: 0;
 }
 
-.vela-ext__subtitle {
-    margin: 0.25rem 0 0;
-    opacity: 0.7;
-}
-
 .vela-ext__muted {
     opacity: 0.65;
 }
@@ -26,29 +21,20 @@
     color: var(--danger-color, #ef4444);
 }
 
+.vela-ext__back {
+    display: inline-block;
+    margin-bottom: 0.75rem;
+    opacity: 0.75;
+    text-decoration: none;
+}
+
+.vela-ext__back:hover {
+    opacity: 1;
+}
+
 .vela-ext__empty {
     text-align: center;
     padding: 3rem 1rem;
-}
-
-.vela-ext__grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 1rem;
-}
-
-.vela-ext-card__row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-}
-
-.vela-ext-card__meta {
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-    min-width: 0;
 }
 
 .vela-ext-card__actions {
@@ -58,38 +44,55 @@
     margin-top: 0.75rem;
 }
 
-.vela-ext-pill {
-    display: inline-flex;
+.vela-ext__header .vela-ext-card__actions {
+    margin-top: 0;
+}
+
+.vela-ext-table__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.35rem;
+}
+
+.vela-ext-detail__heading {
+    display: flex;
     align-items: center;
-    padding: 0.1rem 0.55rem;
-    border-radius: 999px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: lowercase;
-    background: var(--bg-hover, rgba(127, 127, 127, 0.15));
+    gap: 0.75rem;
 }
 
-.vela-ext-pill--running,
-.vela-ext-pill--running-healthy {
-    color: var(--success-color, #22c55e);
+.vela-ext-detail {
+    padding: 1.25rem;
 }
 
-.vela-ext-pill--deploying,
-.vela-ext-pill--starting,
-.vela-ext-pill--restarting {
-    color: var(--warning-color, #f59e0b);
+.vela-ext-detail__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1rem 1.5rem;
+    margin: 0;
 }
 
-.vela-ext-pill--stopped,
-.vela-ext-pill--exited {
-    color: var(--text-muted, #9ca3af);
+.vela-ext-detail__item dt {
+    font-size: 0.8rem;
+    opacity: 0.65;
+    margin-bottom: 0.2rem;
 }
 
-.vela-ext-pill--missing,
-.vela-ext-pill--error,
-.vela-ext-pill--running-unhealthy,
-.vela-ext-pill--degraded {
-    color: var(--danger-color, #ef4444);
+.vela-ext-detail__item dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.vela-ext-detail__warnings {
+    border-left: 3px solid var(--warning-color, #f59e0b);
+    padding: 0.6rem 1rem;
+    margin-bottom: 1.25rem;
+    background: var(--bg-hover, rgba(127, 127, 127, 0.08));
+}
+
+.vela-ext-detail__warnings ul {
+    margin: 0.4rem 0 0;
+    padding-left: 1.2rem;
 }
 
 .vela-ext-form__row {

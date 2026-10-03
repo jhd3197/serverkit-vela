@@ -270,6 +270,119 @@ class InstanceLifecycleTests(unittest.TestCase):
         self.assertEqual(detail["initial_password"]["secret"],
                          "vela_home_vela_initial_password")
 
+    # -- update (rename / domain) ----------------------------------------------
+
+    def test_empty_patch_gets_400(self):
+        self.assertEqual(self._create().status_code, 201)
+        resp = self.client.patch("/api/v1/vela/instances/vela-home",
+                                 json={}, headers=self.headers)
+        self.assertEqual(resp.status_code, 400)
+
+    def test_patch_unknown_slug_gets_404(self):
+        resp = self.client.patch("/api/v1/vela/instances/vela-ghost",
+                                 json={"name": "Ghost"}, headers=self.headers)
+        self.assertEqual(resp.status_code, 404)
+
+    def test_rename_updates_the_registry_and_project_name(self):
+        self.assertEqual(self._create({"name": "Home"}).status_code, 201)
+        resp = self.client.patch("/api/v1/vela/instances/vela-home",
+                                 json={"name": "Casa"}, headers=self.headers)
+        self.assertEqual(resp.status_code, 200, resp.get_json())
+        instance = resp.get_json()["instance"]
+        self.assertEqual(instance["name"], "Casa")
+        # The slug (and so the app/container/disk names) never changes.
+        self.assertEqual(instance["slug"], "vela-home")
+        project = Project.query.filter_by(slug="vela-home").one()
+        self.assertEqual(project.name, "Vela: Casa")
+        self.assertEqual(self.vela_service.get_instance("vela-home")["name"],
+                         "Casa")
+        # A pure rename never re-applies or redeploys.
+        self.assertEqual(self.mock_apply.call_count, 1)
+        self.assertEqual(self.mock_deploy.call_count, 1)
+
+    def test_rename_rejects_an_empty_name(self):
+        self.assertEqual(self._create().status_code, 201)
+        resp = self.client.patch("/api/v1/vela/instances/vela-home",
+                                 json={"name": "   "}, headers=self.headers)
+        self.assertEqual(resp.status_code, 400)
+
+    def test_domain_change_reapplies_and_redeploys(self):
+        self.assertEqual(
+            self._create({"name": "Home", "domain": "a.example.com"}).status_code,
+            201)
+        resp = self.client.patch("/api/v1/vela/instances/vela-home",
+                                 json={"domain": "b.example.com"},
+                                 headers=self.headers)
+        self.assertEqual(resp.status_code, 200, resp.get_json())
+        instance = resp.get_json()["instance"]
+        self.assertEqual(instance["domain"], "b.example.com")
+        self.assertEqual(self.vela_service.get_instance("vela-home")["domain"],
+                         "b.example.com")
+
+        # The second apply carries the re-rendered recipe: new origin, new
+        # domains block, same pinned port.
+        self.assertEqual(self.mock_apply.call_count, 2)
+        _project, normalized = self.mock_apply.call_args.args[:2]
+        service = normalized["services"][0]
+        self.assertEqual(service["port"], 7700)
+        env = {var["key"]: var for var in service["env_vars"]}
+        self.assertEqual(env["VELA_PUBLIC_ORIGIN"]["value"],
+                         "https://b.example.com")
+        self.assertEqual(normalized["domains"], [{
+            "host": "b.example.com", "service": "vela-home", "ssl": "auto"}])
+
+        # The stored manifest was re-pinned with repo provenance kept.
+        project = Project.query.filter_by(slug="vela-home").one()
+        row = ApplicationManifest.query.filter_by(project_id=project.id).one()
+        self.assertEqual(row.source_repo, self.vela_service.VELA_REPO_URL)
+        self.assertIn("b.example.com", row.raw_text)
+
+        # A redeploy lands the new VELA_PUBLIC_ORIGIN in the container.
+        self.assertEqual(self.mock_deploy.call_count, 2)
+        self.assertEqual(self.mock_deploy.call_args.kwargs["trigger"], "update")
+        self.assertEqual(
+            self.vela_service.get_instance("vela-home")["deploy_job_id"],
+            "deploy-job-1")
+
+    def test_domain_detach_drops_the_domains_block(self):
+        self.assertEqual(
+            self._create({"name": "Home", "domain": "a.example.com"}).status_code,
+            201)
+        resp = self.client.patch("/api/v1/vela/instances/vela-home",
+                                 json={"domain": None}, headers=self.headers)
+        self.assertEqual(resp.status_code, 200, resp.get_json())
+        instance = resp.get_json()["instance"]
+        self.assertIsNone(instance["domain"])
+        self.assertTrue(any("VELA_PUBLIC_ORIGIN" in w
+                            for w in instance.get("warnings", [])))
+
+        self.assertEqual(self.mock_apply.call_count, 2)
+        _project, normalized = self.mock_apply.call_args.args[:2]
+        service = normalized["services"][0]
+        env = {var["key"]: var for var in service["env_vars"]}
+        self.assertEqual(env["VELA_PUBLIC_ORIGIN"]["source"], "placeholder")
+        self.assertEqual(normalized["domains"], [])
+        self.assertEqual(self.mock_deploy.call_count, 2)
+
+    def test_invalid_domain_on_patch_gets_400(self):
+        self.assertEqual(self._create().status_code, 201)
+        resp = self.client.patch("/api/v1/vela/instances/vela-home",
+                                 json={"domain": "not a domain"},
+                                 headers=self.headers)
+        self.assertEqual(resp.status_code, 400)
+
+    def test_patch_same_values_is_a_noop(self):
+        self.assertEqual(
+            self._create({"name": "Home", "domain": "a.example.com"}).status_code,
+            201)
+        resp = self.client.patch(
+            "/api/v1/vela/instances/vela-home",
+            json={"name": "Home", "domain": "a.example.com"},
+            headers=self.headers)
+        self.assertEqual(resp.status_code, 200, resp.get_json())
+        self.assertEqual(self.mock_apply.call_count, 1)
+        self.assertEqual(self.mock_deploy.call_count, 1)
+
     # -- actions ---------------------------------------------------------------
 
     def test_start_stop_restart_use_the_panel_lifecycle(self):

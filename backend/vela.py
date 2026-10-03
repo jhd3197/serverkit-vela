@@ -78,6 +78,36 @@ def create_instance():
     }), 201
 
 
+@vela_bp.route('/instances/<slug>', methods=['PATCH'])
+@developer_required
+def update_instance(slug):
+    """Rename the instance and/or change its attached domain: {name?, domain?}.
+
+    At least one key is required. ``domain: null`` (or an empty string)
+    detaches the domain: the recipe is re-rendered and re-applied, the live
+    Domain rows are removed and the app redeploys.
+    """
+    instance, err = _instance_or_404(slug)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    if 'name' not in data and 'domain' not in data:
+        return jsonify({'error': 'Nothing to update: pass name and/or domain'}), 400
+    user = get_current_user()
+    try:
+        instance, changed = vela_service.update_instance(
+            user, instance,
+            name=data.get('name'),
+            domain=(data['domain'] if 'domain' in data
+                    else vela_service.DOMAIN_UNSET))
+    except vela_service.InstanceError as exc:
+        return jsonify({'error': str(exc)}), exc.status
+
+    audit('vela.instance.update', user_id=user.id, target_type='vela_instance',
+          target_id=slug, details=changed)
+    return jsonify({'instance': vela_service.instance_view(instance, detail=True)}), 200
+
+
 @vela_bp.route('/instances/<slug>/<action>', methods=['POST'])
 @developer_required
 def instance_action(slug, action):

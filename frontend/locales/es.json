@@ -2,7 +2,6 @@
   "vela": {
     "page": {
       "title": "Vela",
-      "subtitle": "Instancias de Vela con nombre, cada una con su propio contenedor, disco, dominio y acceso.",
       "loading": "Cargando escritorios...",
       "refresh": "Actualizar",
       "newDesktop": "Nuevo escritorio"
@@ -10,6 +9,14 @@
     "empty": {
       "title": "Aún no hay escritorios",
       "message": "Aún no hay escritorios: crea tu primer Vela. La guía «Crea tu primer escritorio» te acompaña paso a paso."
+    },
+    "table": {
+      "name": "Nombre",
+      "server": "Servidor",
+      "domain": "Dominio",
+      "status": "Estado",
+      "port": "Puerto",
+      "created": "Creado"
     },
     "create": {
       "title": "Nuevo escritorio Vela",
@@ -44,6 +51,36 @@
       "stop": "Detener",
       "restart": "Reiniciar",
       "delete": "Eliminar"
+    },
+    "detail": {
+      "back": "Todos los escritorios",
+      "notFound": "Este escritorio ya no existe.",
+      "edit": "Editar",
+      "url": "URL",
+      "server": "Servidor",
+      "domain": "Dominio",
+      "port": "Puerto",
+      "created": "Creado",
+      "deploy": "Trabajo de despliegue",
+      "disk": "Disco",
+      "backup": "Copia de seguridad",
+      "backupRetain": "conservar {{count}}",
+      "password": "Contraseña del primer inicio",
+      "passwordHint": "Revela el valor desde la bóveda de secretos del manifiesto de ServerKit; solo se aplica en el primer inicio.",
+      "warnings": "Requiere atención"
+    },
+    "edit": {
+      "title": "Editar «{{name}}»",
+      "name": "Nombre",
+      "nameHint": "Solo el nombre visible: el slug, el contenedor y el disco conservan su nombre.",
+      "domain": "Dominio",
+      "domainHint": "Déjalo vacío para quitar el dominio. Vela no arranca sin su origen público; asigna un dominio antes de iniciar sesión.",
+      "submit": "Guardar cambios",
+      "saving": "Guardando...",
+      "cancel": "Cancelar",
+      "nameRequired": "El nombre es obligatorio",
+      "success": "Escritorio actualizado",
+      "failed": "No se pudo actualizar el escritorio"
     }
   }
 }

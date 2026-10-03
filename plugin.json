@@ -26,7 +26,8 @@
       }
     ],
     "routes": [
-      { "path": "vela", "component": "VelaExtension" }
+      { "path": "vela", "component": "VelaExtension" },
+      { "path": "vela/:slug", "component": "VelaInstanceExtension" }
     ],
     "page_titles": {
       "/vela": "Vela Desktops"

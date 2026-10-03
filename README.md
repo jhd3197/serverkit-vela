@@ -74,6 +74,7 @@ with the `servers:read` scope; writes require the developer role.
 | `GET /instances` | List instances with live status and URL |
 | `POST /instances` | Create `{server_id?, name, domain?}` → 201 + deploy job id |
 | `GET /instances/<slug>` | Detail: status, URL, vault reference, disk/backup info |
+| `PATCH /instances/<slug>` | Update `{name?, domain?}` — rename the display name, change or detach (empty) the domain; re-applies the manifest and redeploys |
 | `POST /instances/<slug>/start\|stop\|restart` | Lifecycle via the panel's application lifecycle service |
 | `DELETE /instances/<slug>` | Confirm-gated (`?confirm=<slug>`); suspends then purges the managed app, its disk and vhost |
 
@@ -113,8 +114,8 @@ python -m unittest discover -s tests
 ## Phase notes
 
 - **Phase 1 (this version):** panel-host deploys, instance registry,
-  create/list/detail/delete, start/stop/restart, the manager page and the
-  "Create your first desktop" walkthrough.
+  create/list/detail/update/delete, start/stop/restart, the manager page
+  (table + per-instance details page) and the "Create your first desktop"
+  walkthrough.
 - **Later:** fleet (remote agent) deploy targets when the panel's remote
-  appliance apply lands, domain attach/detach on existing instances, and
-  surfacing backup runs in the instance detail.
+  appliance apply lands, and surfacing backup runs in the instance detail.

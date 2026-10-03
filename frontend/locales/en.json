@@ -2,7 +2,6 @@
   "vela": {
     "page": {
       "title": "Vela",
-      "subtitle": "Named Vela instances, each with its own container, disk, domain and login.",
       "loading": "Loading desktops...",
       "refresh": "Refresh",
       "newDesktop": "New desktop"
@@ -10,6 +9,14 @@
     "empty": {
       "title": "No desktops yet",
       "message": "No desktops yet — create your first Vela. The \"Create your first desktop\" walkthrough walks you through it."
+    },
+    "table": {
+      "name": "Name",
+      "server": "Server",
+      "domain": "Domain",
+      "status": "Status",
+      "port": "Port",
+      "created": "Created"
     },
     "create": {
       "title": "New Vela desktop",
@@ -44,6 +51,36 @@
       "stop": "Stop",
       "restart": "Restart",
       "delete": "Delete"
+    },
+    "detail": {
+      "back": "All desktops",
+      "notFound": "This desktop does not exist anymore.",
+      "edit": "Edit",
+      "url": "URL",
+      "server": "Server",
+      "domain": "Domain",
+      "port": "Port",
+      "created": "Created",
+      "deploy": "Deploy job",
+      "disk": "Disk",
+      "backup": "Backup",
+      "backupRetain": "keep {{count}}",
+      "password": "First-start password",
+      "passwordHint": "Reveal the value from ServerKit's manifest secret vault; it applies on first start only.",
+      "warnings": "Needs attention"
+    },
+    "edit": {
+      "title": "Edit \"{{name}}\"",
+      "name": "Name",
+      "nameHint": "Display name only — the slug, container and disk names stay as created.",
+      "domain": "Domain",
+      "domainHint": "Leave empty to detach the domain. Vela refuses to start without its public origin, so attach a domain before signing in.",
+      "submit": "Save changes",
+      "saving": "Saving...",
+      "cancel": "Cancel",
+      "nameRequired": "A name is required",
+      "success": "Desktop updated",
+      "failed": "Failed to update the desktop"
     }
   }
 }

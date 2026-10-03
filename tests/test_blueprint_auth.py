@@ -130,6 +130,7 @@ class BlueprintAuthTests(unittest.TestCase):
     def test_unauthenticated_gets_401(self):
         self.assertEqual(self.client.get("/api/v1/vela/instances").status_code, 401)
         self.assertEqual(self.client.post("/api/v1/vela/instances", json={}).status_code, 401)
+        self.assertEqual(self.client.patch("/api/v1/vela/instances/vela-x", json={}).status_code, 401)
         self.assertEqual(self.client.delete("/api/v1/vela/instances/vela-x").status_code, 401)
 
     # (e) writes need the developer role: a viewer JWT is a 403, not a 2xx
@@ -140,6 +141,9 @@ class BlueprintAuthTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 403)
         resp = self.client.post("/api/v1/vela/instances/vela-x/start",
                                 headers=headers)
+        self.assertEqual(resp.status_code, 403)
+        resp = self.client.patch("/api/v1/vela/instances/vela-x",
+                                 json={"name": "X"}, headers=headers)
         self.assertEqual(resp.status_code, 403)
         resp = self.client.delete("/api/v1/vela/instances/vela-x",
                                   headers=headers)
