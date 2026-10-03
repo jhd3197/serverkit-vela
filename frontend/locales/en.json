@@ -1,0 +1,13 @@
+{
+  "vela": {
+    "page": {
+      "title": "Vela",
+      "subtitle": "Named Vela instances, each with its own container, disk, domain and login.",
+      "loading": "Loading desktops..."
+    },
+    "empty": {
+      "title": "No desktops yet",
+      "message": "No desktops yet — create your first Vela. The \"Create your first desktop\" walkthrough walks you through it."
+    }
+  }
+}

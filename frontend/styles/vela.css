@@ -1,0 +1,103 @@
+/* Vela extension — layout-only styles. Buttons, cards, forms, pills and modal
+   chrome come from the panel's own design system classes at runtime. */
+
+.vela-ext__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.vela-ext__title {
+    margin: 0;
+}
+
+.vela-ext__subtitle {
+    margin: 0.25rem 0 0;
+    opacity: 0.7;
+}
+
+.vela-ext__muted {
+    opacity: 0.65;
+}
+
+.vela-ext__error {
+    color: var(--danger-color, #ef4444);
+}
+
+.vela-ext__empty {
+    text-align: center;
+    padding: 3rem 1rem;
+}
+
+.vela-ext__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1rem;
+}
+
+.vela-ext-card__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.vela-ext-card__meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+}
+
+.vela-ext-card__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.vela-ext-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.1rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: lowercase;
+    background: var(--bg-hover, rgba(127, 127, 127, 0.15));
+}
+
+.vela-ext-pill--running,
+.vela-ext-pill--running-healthy {
+    color: var(--success-color, #22c55e);
+}
+
+.vela-ext-pill--deploying,
+.vela-ext-pill--starting,
+.vela-ext-pill--restarting {
+    color: var(--warning-color, #f59e0b);
+}
+
+.vela-ext-pill--stopped,
+.vela-ext-pill--exited {
+    color: var(--text-muted, #9ca3af);
+}
+
+.vela-ext-pill--missing,
+.vela-ext-pill--error,
+.vela-ext-pill--running-unhealthy,
+.vela-ext-pill--degraded {
+    color: var(--danger-color, #ef4444);
+}
+
+.vela-ext-form__row {
+    margin-bottom: 0.9rem;
+}
+
+.vela-ext-form__hint {
+    margin: 0.25rem 0 0;
+    font-size: 0.8rem;
+    opacity: 0.65;
+}

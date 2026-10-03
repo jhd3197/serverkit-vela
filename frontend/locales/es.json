@@ -1,0 +1,13 @@
+{
+  "vela": {
+    "page": {
+      "title": "Vela",
+      "subtitle": "Instancias de Vela con nombre, cada una con su propio contenedor, disco, dominio y acceso.",
+      "loading": "Cargando escritorios..."
+    },
+    "empty": {
+      "title": "Aún no hay escritorios",
+      "message": "Aún no hay escritorios: crea tu primer Vela. La guía «Crea tu primer escritorio» te acompaña paso a paso."
+    }
+  }
+}

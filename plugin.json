@@ -1,0 +1,84 @@
+{
+  "name": "serverkit-vela",
+  "display_name": "Vela",
+  "version": "0.1.0",
+  "description": "Create and manage named Vela instances on panel-managed servers. Each instance is a virtual server with its own container, data disk, domain and login, deployed from the official Vela serverkit.yaml recipe as a ServerKit managed app.",
+  "author": "Juan Denis",
+  "homepage": "https://github.com/jhd3197/serverkit-vela",
+  "repository": "https://github.com/jhd3197/serverkit-vela",
+  "license": "MIT",
+  "category": "deployment",
+  "permissions": ["docker", "network", "filesystem"],
+  "min_panel_version": "1.11.17",
+  "sdk_version": "^1.5.0",
+  "frontend_entry": "dist/index.mjs",
+  "entry_point": "vela:vela_bp",
+  "url_prefix": "/api/v1/vela",
+  "icon": "<path d=\"M12 2l7 18h-4l-3-8-3 8H5l7-18z\"/>",
+  "contributions": {
+    "nav": [
+      {
+        "id": "vela",
+        "label": "Vela",
+        "route": "/vela",
+        "category": "infrastructure",
+        "icon": "<path d=\"M12 3v18\"/><path d=\"M12 3c4.5 3 7 7.5 7 13h-7\"/><path d=\"M12 9c-3 2-5 4.5-5 7h5\"/><path d=\"M4 21h16\"/>"
+      }
+    ],
+    "routes": [
+      { "path": "vela", "component": "VelaExtension" }
+    ],
+    "page_titles": {
+      "/vela": "Vela Desktops"
+    },
+    "command_palette": [
+      { "label": "Vela", "path": "/vela", "category": "Pages", "keywords": "vela desktop instance app server" }
+    ],
+    "walkthroughs": [
+      {
+        "id": "create-first-desktop",
+        "title": "Create your first desktop",
+        "description": "Deploy a named Vela instance with its own container, data disk and domain, then sign in with the generated password.",
+        "duration": "About 5 minutes",
+        "icon": "rocket",
+        "tone": "green",
+        "secondary": false,
+        "permissions": [
+          { "feature": "applications", "level": "write" }
+        ],
+        "steps": [
+          {
+            "id": "open-create",
+            "title": "Open the create form",
+            "description": "Start a new Vela instance from the Vela page.",
+            "action": "New desktop",
+            "path": "/vela",
+            "target": "vela-create-desktop",
+            "completion": { "type": "route", "path": "/vela" }
+          },
+          {
+            "id": "configure-desktop",
+            "title": "Name the desktop",
+            "description": "Pick the target server, give the desktop a name, and optionally set the domain it answers on.",
+            "target": "vela-create-form",
+            "completion": { "type": "manual" }
+          },
+          {
+            "id": "create-desktop",
+            "title": "Create the desktop",
+            "description": "Submit the form. ServerKit deploys the container, data disk, domain and a generated first-start password.",
+            "target": "vela-create-submit",
+            "completion": { "type": "signal", "signal": "vela.desktop-created" }
+          },
+          {
+            "id": "open-desktop",
+            "title": "Open the desktop",
+            "description": "Open the instance URL and sign in with the generated password from ServerKit's secret vault.",
+            "target": "vela-open-desktop",
+            "completion": { "type": "manual" }
+          }
+        ]
+      }
+    ]
+  }
+}
