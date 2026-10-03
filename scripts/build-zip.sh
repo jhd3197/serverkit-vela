@@ -4,10 +4,11 @@
 # Usage:
 #   ./scripts/build-zip.sh
 #
-# Reads plugin.json for name/version, stages files in a temp dir (so dev
-# junk like .git, node_modules, dist/ doesn't bloat the bundle), and
-# writes dist/<name>-<version>.zip ready for the panel's "Upload Zip"
-# install path.
+# Reads plugin.json for name/version and writes dist/<name>-<version>.zip
+# ready for the panel's "Upload Zip" install path. The archive is written
+# with Python's zipfile (every dev box has it; the zip binary is not part of
+# Git Bash on Windows), staging nothing and excluding dev junk (.git,
+# node_modules, caches, the release zips themselves).
 
 set -euo pipefail
 
@@ -18,39 +19,44 @@ if [[ ! -f plugin.json ]]; then
     exit 1
 fi
 
-# Use python (every dev box has it) for robust JSON parsing — avoids the
-# usual jq / sed shell-tax.
-read -r NAME VERSION < <(python3 - <<'PY'
-import json, sys
-m = json.load(open('plugin.json'))
-if 'name' not in m or 'version' not in m:
-    sys.exit("plugin.json must define both 'name' and 'version'")
-print(m['name'], m['version'])
+PYTHON="$(command -v python3 || command -v python)"
+
+"$PYTHON" - <<'PY'
+import json
+import os
+import zipfile
+
+with open('plugin.json', encoding='utf-8') as handle:
+    manifest = json.load(handle)
+name = manifest['name']
+version = manifest['version']
+
+# Directory names excluded at any depth. Note: NOT 'dist' — frontend/dist/
+# carries the prebuilt runtime bundle the panel loads (frontend_entry), so
+# only the TOP-LEVEL dist/ (the release zips) is skipped.
+EXCLUDE_DIRS = {
+    '.git', '.github', 'node_modules', '__pycache__', '.venv', 'venv',
+    'build', '.pytest_cache', '.idea', '.vscode', 'scripts',
+}
+EXCLUDE_EXT = {'.pyc', '.pyo', '.log'}
+
+zip_path = os.path.join('dist', f'{name}-{version}.zip')
+os.makedirs('dist', exist_ok=True)
+if os.path.exists(zip_path):
+    os.remove(zip_path)
+
+with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as archive:
+    for root, dirs, files in os.walk('.'):
+        dirs[:] = [d for d in dirs
+                   if d not in EXCLUDE_DIRS and not (d == 'dist' and root == '.')]
+        for filename in files:
+            if os.path.splitext(filename)[1].lower() in EXCLUDE_EXT:
+                continue
+            full = os.path.join(root, filename)
+            arcname = os.path.relpath(full, '.')
+            archive.write(full, arcname)
+
+size_kb = os.path.getsize(zip_path) // 1024
+print(f'Built {zip_path} ({size_kb} KB)'.replace(os.sep, '/'))
+print('Upload via panel -> Marketplace -> Plugins -> Upload Zip')
 PY
-)
-
-DIST_DIR="dist"
-ZIP_PATH="$DIST_DIR/${NAME}-${VERSION}.zip"
-
-mkdir -p "$DIST_DIR"
-rm -f "$ZIP_PATH"
-
-# Build the exclude list for `zip -x`. Mirror what the panel's installer
-# also strips, but cleaner bundles are nicer on download.
-EXCLUDES=(
-    ".git/*" ".github/*" "node_modules/*" "__pycache__/*"
-    ".venv/*" "venv/*" "dist/*" "build/*" ".pytest_cache/*"
-    ".idea/*" ".vscode/*" "scripts/*"
-    "*.pyc" "*.pyo" "*.log"
-)
-
-if ! command -v zip >/dev/null 2>&1; then
-    echo "zip not on PATH (apt install zip / brew install zip)" >&2
-    exit 1
-fi
-
-zip -r "$ZIP_PATH" . -x "${EXCLUDES[@]}" >/dev/null
-
-SIZE_KB=$(du -k "$ZIP_PATH" | awk '{print $1}')
-echo "Built $ZIP_PATH (${SIZE_KB} KB)"
-echo "Upload via panel → Marketplace → Plugins → Upload Zip"
