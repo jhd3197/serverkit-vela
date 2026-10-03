@@ -218,3 +218,273 @@ def _backup_info(app):
 
 def list_instance_views():
     return [instance_view(instance) for instance in _registry().values()]
+
+
+# ---------------------------------------------------------------------------
+# Lifecycle: create / delete / start / stop / restart
+# ---------------------------------------------------------------------------
+
+#: The Vela deploy recipe, mirroring vela/serverkit.yaml verbatim with the
+#: project, service and disk names templated per instance. VELA_PUBLIC_ORIGIN
+#: and the domains block are only rendered when a domain is given.
+RECIPE_TEMPLATE = """\
+# yaml-language-server: $schema=https://serverkit.ai/serverkit-yaml.schema.json
+version: 1
+project: {slug}
+
+services:
+  - name: {slug}
+    type: docker
+    dockerfilePath: Dockerfile
+    port: 7700
+    healthCheckPath: /api/health
+    autoDeploy: false
+    envVars:
+      - key: VELA_DATA_DIR
+        value: /data
+      # Set the exact browser address, e.g. https://vela.example.com (no slash).
+      - key: VELA_PUBLIC_ORIGIN{origin_line}
+      # IP of ServerKit's proxy as seen inside the container; see docs/SERVER.md.
+      - key: VELA_TRUSTED_PROXIES
+        value: "{trusted_proxies}"
+      # First-start password only. Retrieve it from ServerKit's secret vault.
+      - key: VELA_INITIAL_PASSWORD
+        generate: true
+    disks:
+      - name: {slug}-data
+        mountPath: /data
+        size: 4GB
+        backup:
+          schedule: daily
+          retain: 7
+{domains_block}"""
+
+_DOMAINS_BLOCK = """
+domains:
+  - host: {domain}
+    service: {slug}
+    ssl: auto
+"""
+
+
+class InstanceError(ValueError):
+    """Validation failure safe to show the caller. Carries an HTTP status."""
+
+    def __init__(self, message, status=400):
+        super().__init__(message)
+        self.status = status
+
+
+def build_recipe(slug, domain=None, trusted_proxies=DEFAULT_TRUSTED_PROXIES):
+    """Render the per-instance serverkit.yaml text."""
+    origin_line = f'\n        value: "https://{domain}"' if domain else ''
+    domains_block = _DOMAINS_BLOCK.format(domain=domain, slug=slug) if domain else ''
+    return RECIPE_TEMPLATE.format(
+        slug=slug, origin_line=origin_line,
+        trusted_proxies=trusted_proxies, domains_block=domains_block)
+
+
+def _resolve_target(server_id):
+    """Validate the requested deploy target.
+
+    Returns (server_key, server_name): ``(None, 'This server')`` for the panel
+    host, or the Server's name for a fleet target. Raises InstanceError for an
+    unknown id, an observed (read-only) server, or a remote target — the
+    panel's appliance apply only runs Dockerfile builds on the panel host
+    today (remote dispatch is a later phase), and we refuse up front instead
+    of half-creating a project.
+    """
+    from app.models.server import Server
+    raw = (str(server_id).strip() if server_id is not None else '')
+    if raw in ('', 'local'):
+        return None, 'This server'
+    server = (Server.query.filter_by(id=raw).first()
+              or Server.query.filter_by(name=raw).first())
+    if server is None:
+        raise InstanceError(f'Unknown server: {raw}')
+    if not server.is_managed:
+        raise InstanceError(
+            f'{server.name} is an observed (read-only) server — ServerKit will '
+            'not deploy to it. Switch it to managed, or pick the panel host.')
+    raise InstanceError(
+        f'{server.name} is a remote server — deploying Vela to a fleet server '
+        'is not supported yet (the panel only runs Dockerfile builds on the '
+        'panel host). Pick "This server" for now.')
+
+
+def _app_name_clash(slug):
+    from app.models.application import Application
+    # NOT query_active: a tombstone keeps reserving its name and directory.
+    return Application.query.filter_by(name=slug, server_id=None).first() is not None
+
+
+def create_instance(user, name, server_id=None, domain=None):
+    """Deploy one Vela instance through the panel's manifest machinery.
+
+    Flow: validate -> per-instance Project -> store the rendered serverkit.yaml
+    (with repo provenance, so the Dockerfile build can clone) -> manifest apply
+    (creates the managed app, clones the repo, sets env, generates the
+    first-start password into the secret vault, ensures the 4 GB disk and its
+    daily backup policy, attaches the domain) -> enqueue the async deploy job.
+    """
+    display = (name or '').strip()
+    slug = slugify(display)
+    if not slug or not _SLUG_RE.match(slug):
+        raise InstanceError(
+            'A name is required (letters, numbers and dashes; e.g. "Home")')
+    if get_instance(slug) is not None:
+        raise InstanceError(f'An instance named "{display}" already exists', status=409)
+    if _app_name_clash(slug):
+        raise InstanceError(
+            f'The name {slug} is already taken by another app on this panel',
+            status=409)
+
+    host = normalize_domain(domain)
+    if domain and not host:
+        raise InstanceError('Invalid domain')
+    if host and not valid_domain(host):
+        raise InstanceError(f'Invalid domain: {host}')
+
+    server_key, server_name = _resolve_target(server_id)
+
+    from app.services.manifest_spec_service import ManifestSpecService, ManifestError
+    recipe_text = build_recipe(slug, domain=host)
+    try:
+        normalized = ManifestSpecService.normalize_text(recipe_text)
+    except ManifestError as exc:  # pragma: no cover - the template is fixed
+        raise InstanceError(f'Recipe failed to validate: {"; ".join(exc.errors)}')
+
+    from app.models.project import Project
+    from app.services.workspace_service import WorkspaceService
+    workspace = WorkspaceService.ensure_default_workspace()
+    project = Project(
+        workspace_id=workspace.id,
+        name=f'Vela: {display}',
+        slug=slug,
+        description='Vela instance managed by the serverkit-vela extension',
+    )
+    db.session.add(project)
+    db.session.commit()
+
+    from app.services.manifest_persistence_service import ManifestPersistenceService
+    manifest_row = ManifestPersistenceService.store_manifest(
+        project_id=project.id,
+        normalized=normalized,
+        raw_text=recipe_text,
+        source_repo=VELA_REPO_URL,
+        source_ref=VELA_REPO_BRANCH,
+    )
+    db.session.commit()
+
+    from app.services.manifest_apply_service import ManifestApplyService
+    result = ManifestApplyService.apply(
+        project, normalized, user_id=user.id, manifest_row=manifest_row)
+
+    if result.get('refused'):
+        # Plan-time blocker (e.g. appliance guard): nothing was executed, so
+        # roll the bookkeeping back rather than leaving an empty project.
+        message = (result.get('blockers') or [{}])[0].get('message') \
+            or 'The panel refused this deploy'
+        _delete_project(project)
+        raise InstanceError(message)
+
+    app = _find_project_app(project, slug)
+
+    instance = put_instance({
+        'slug': slug,
+        'name': display,
+        'server_id': server_key or 'local',
+        'server_name': server_name,
+        'domain': host,
+        'app_id': app.id if app else None,
+        'project_id': project.id,
+        'deploy_job_id': None,
+        'created_at': datetime.utcnow().isoformat() + 'Z',
+        'created_by': user.id,
+    })
+
+    if not result.get('success'):
+        failure = next((r for r in result.get('results', [])
+                        if r.get('status') == 'error'), {})
+        raise InstanceError(
+            f'The manifest apply failed: {failure.get("error") or "unknown step"}. '
+            f'The partial instance "{slug}" was kept so you can inspect it in '
+            'the panel; delete it and retry.', status=502)
+
+    deploy_job_id = None
+    if app is not None:
+        from app.services.deployment_job_service import DeploymentJobService
+        deploy = DeploymentJobService.enqueue_app_deploy(
+            app, user_id=user.id, trigger='install')
+        if deploy.get('success'):
+            deploy_job_id = deploy.get('job_id')
+            instance['deploy_job_id'] = deploy_job_id
+            put_instance(instance)
+        else:
+            log.warning('%s: instance %s applied but deploy enqueue failed: %s',
+                        PLUGIN_SLUG, slug, deploy.get('error'))
+
+    return instance, deploy_job_id
+
+
+def _find_project_app(project, slug):
+    from app.models.application import Application
+    return Application.query_active().filter_by(
+        project_id=project.id, name=slug).first()
+
+
+def _delete_project(project):
+    """Best-effort removal of the per-instance project and its manifest row."""
+    try:
+        from app.models.application_manifest import ApplicationManifest
+        ApplicationManifest.query.filter_by(project_id=project.id).delete()
+        db.session.delete(project)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        log.warning('%s: failed to remove project %s', PLUGIN_SLUG, project.id)
+
+
+def delete_instance(user, instance):
+    """Remove the managed app (containers, vhost, disk) through the panel's
+    own lifecycle: suspend (the reversible half) then purge with data removal
+    — the same path `DELETE /api/v1/apps/<id>?purge=true` runs. Never docker.
+    """
+    from app.services import application_restore, recycle_bin_service
+    app = _load_app(instance)
+    cleanup = None
+    warning = None
+    if app is not None:
+        cleanup = application_restore.suspend_application(app, user_id=user.id)
+        app._purge_remove_data = True
+        _ok, warning = recycle_bin_service.purge('application', app.id)
+
+    project = None
+    if instance.get('project_id'):
+        from app.models.project import Project
+        project = Project.query.get(instance['project_id'])
+    if project is not None:
+        _delete_project(project)
+
+    remove_instance(instance['slug'])
+    return {'cleanup': cleanup, 'warning': warning}
+
+
+def app_action(user, instance, action):
+    """start/stop/restart through the panel's application lifecycle service."""
+    from app.services import application_lifecycle_service as lifecycle
+    app = _load_app(instance)
+    if app is None:
+        raise InstanceError(
+            'The managed app for this instance is gone — delete the instance '
+            'and create it again', status=409)
+    handler = {
+        'start': lifecycle.start_application,
+        'stop': lifecycle.stop_application,
+        'restart': lifecycle.restart_application,
+    }[action]
+    try:
+        handler(app, user_id=user.id)
+    except lifecycle.ApplicationLifecycleError as exc:
+        raise InstanceError(str(exc))
+    return app
