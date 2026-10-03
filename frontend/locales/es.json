@@ -3,11 +3,47 @@
     "page": {
       "title": "Vela",
       "subtitle": "Instancias de Vela con nombre, cada una con su propio contenedor, disco, dominio y acceso.",
-      "loading": "Cargando escritorios..."
+      "loading": "Cargando escritorios...",
+      "refresh": "Actualizar",
+      "newDesktop": "Nuevo escritorio"
     },
     "empty": {
       "title": "Aún no hay escritorios",
       "message": "Aún no hay escritorios: crea tu primer Vela. La guía «Crea tu primer escritorio» te acompaña paso a paso."
+    },
+    "create": {
+      "title": "Nuevo escritorio Vela",
+      "server": "Servidor",
+      "thisServer": "Este servidor (el panel)",
+      "remoteSoon": "el despliegue remoto aún no está disponible",
+      "name": "Nombre",
+      "namePlaceholder": "Casa",
+      "nameHint": "Será el nombre de la instancia, el contenedor y el disco: «Casa» se convierte en vela-casa.",
+      "domain": "Dominio (opcional)",
+      "domainHint": "Vela no arranca sin su origen público; asigna un dominio antes del primer inicio de sesión.",
+      "submit": "Crear escritorio",
+      "creating": "Creando...",
+      "cancel": "Cancelar",
+      "nameRequired": "El nombre es obligatorio",
+      "success": "El escritorio «{{name}}» se está desplegando",
+      "failed": "No se pudo crear el escritorio"
+    },
+    "action": {
+      "success": "{{action}} enviado a «{{name}}»"
+    },
+    "delete": {
+      "title": "¿Eliminar «{{name}}»?",
+      "message": "Se eliminarán el contenedor, su disco de datos y la ruta del dominio en ServerKit. Las copias de seguridad ya realizadas se conservan. No se puede deshacer.",
+      "confirm": "Eliminar escritorio",
+      "success": "Escritorio «{{name}}» eliminado"
+    },
+    "card": {
+      "open": "Abrir",
+      "noUrl": "Asigna un dominio para abrir este escritorio",
+      "start": "Iniciar",
+      "stop": "Detener",
+      "restart": "Reiniciar",
+      "delete": "Eliminar"
     }
   }
 }

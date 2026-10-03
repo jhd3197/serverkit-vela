@@ -3,11 +3,47 @@
     "page": {
       "title": "Vela",
       "subtitle": "Named Vela instances, each with its own container, disk, domain and login.",
-      "loading": "Loading desktops..."
+      "loading": "Loading desktops...",
+      "refresh": "Refresh",
+      "newDesktop": "New desktop"
     },
     "empty": {
       "title": "No desktops yet",
       "message": "No desktops yet — create your first Vela. The \"Create your first desktop\" walkthrough walks you through it."
+    },
+    "create": {
+      "title": "New Vela desktop",
+      "server": "Server",
+      "thisServer": "This server (panel host)",
+      "remoteSoon": "remote deploys are not supported yet",
+      "name": "Name",
+      "namePlaceholder": "Home",
+      "nameHint": "Becomes the instance, container and disk name: \"Home\" turns into vela-home.",
+      "domain": "Domain (optional)",
+      "domainHint": "Vela refuses to start without its public origin, so attach a domain before first sign-in.",
+      "submit": "Create desktop",
+      "creating": "Creating...",
+      "cancel": "Cancel",
+      "nameRequired": "A name is required",
+      "success": "Desktop \"{{name}}\" is deploying",
+      "failed": "Failed to create the desktop"
+    },
+    "action": {
+      "success": "{{action}} sent to \"{{name}}\""
+    },
+    "delete": {
+      "title": "Delete \"{{name}}\"?",
+      "message": "This removes the container, its data disk and the domain route through ServerKit. Backups already taken are kept. This cannot be undone.",
+      "confirm": "Delete desktop",
+      "success": "Desktop \"{{name}}\" deleted"
+    },
+    "card": {
+      "open": "Open",
+      "noUrl": "Attach a domain to open this desktop",
+      "start": "Start",
+      "stop": "Stop",
+      "restart": "Restart",
+      "delete": "Delete"
     }
   }
 }
