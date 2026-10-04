@@ -100,7 +100,7 @@ export default function VelaInstancePage() {
             title: t('vela.delete.title', 'Delete "{{name}}"?', { name: instance.name }),
             message: t(
                 'vela.delete.message',
-                'This removes the container, its data disk and the domain route through ServerKit. Backups already taken are kept. This cannot be undone.'),
+                "This removes the container, its data disk and the domain route through ServerKit. Backups already taken are kept. This can't be undone."),
             confirmText: t('vela.delete.confirm', 'Delete desktop'),
             variant: 'danger',
         });
@@ -142,7 +142,7 @@ export default function VelaInstancePage() {
     if (loading && !instance) {
         return (
             <div className="vela-ext">
-                <p className="vela-ext__muted">{t('vela.page.loading', 'Loading desktops...')}</p>
+                <p className="vela-ext__muted">{t('vela.page.loading', 'Loading desktops…')}</p>
             </div>
         );
     }
@@ -297,7 +297,7 @@ export default function VelaInstancePage() {
                             onChange={(event) => setEditForm({ ...editForm, name: event.target.value })}
                         />
                         <p className="vela-ext-form__hint">
-                            {t('vela.edit.nameHint', 'Display name only — the slug, container and disk names stay as created.')}
+                            {t('vela.edit.nameHint', 'Display name only. The slug, container and disk names stay as created.')}
                         </p>
                     </div>
                     <div className="vela-ext-form__row">
@@ -319,7 +319,7 @@ export default function VelaInstancePage() {
                     <div className="vela-ext-card__actions">
                         <button type="submit" className="btn btn-primary" disabled={saving}>
                             {saving
-                                ? t('vela.edit.saving', 'Saving...')
+                                ? t('vela.edit.saving', 'Saving…')
                                 : t('vela.edit.submit', 'Save changes')}
                         </button>
                         <button

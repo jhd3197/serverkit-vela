@@ -2,13 +2,13 @@
   "vela": {
     "page": {
       "title": "Vela",
-      "loading": "Loading desktops...",
+      "loading": "Loading desktops…",
       "refresh": "Refresh",
       "newDesktop": "New desktop"
     },
     "empty": {
       "title": "No desktops yet",
-      "message": "No desktops yet — create your first Vela. The \"Create your first desktop\" walkthrough walks you through it."
+      "message": "Create your first Vela desktop. The \"Create your first desktop\" walkthrough walks you through it."
     },
     "table": {
       "name": "Name",
@@ -21,7 +21,7 @@
     "create": {
       "title": "New Vela desktop",
       "server": "Server",
-      "thisServer": "This server (panel host)",
+      "thisServer": "Panel server",
       "remoteSoon": "remote deploys are not supported yet",
       "name": "Name",
       "namePlaceholder": "Home",
@@ -29,7 +29,7 @@
       "domain": "Domain (optional)",
       "domainHint": "Vela refuses to start without its public origin, so attach a domain before first sign-in.",
       "submit": "Create desktop",
-      "creating": "Creating...",
+      "creating": "Creating…",
       "cancel": "Cancel",
       "nameRequired": "A name is required",
       "success": "Desktop \"{{name}}\" is deploying",
@@ -40,7 +40,7 @@
     },
     "delete": {
       "title": "Delete \"{{name}}\"?",
-      "message": "This removes the container, its data disk and the domain route through ServerKit. Backups already taken are kept. This cannot be undone.",
+      "message": "This removes the container, its data disk and the domain route through ServerKit. Backups already taken are kept. This can't be undone.",
       "confirm": "Delete desktop",
       "success": "Desktop \"{{name}}\" deleted"
     },
@@ -72,11 +72,11 @@
     "edit": {
       "title": "Edit \"{{name}}\"",
       "name": "Name",
-      "nameHint": "Display name only — the slug, container and disk names stay as created.",
+      "nameHint": "Display name only. The slug, container and disk names stay as created.",
       "domain": "Domain",
       "domainHint": "Leave empty to detach the domain. Vela refuses to start without its public origin, so attach a domain before signing in.",
       "submit": "Save changes",
-      "saving": "Saving...",
+      "saving": "Saving…",
       "cancel": "Cancel",
       "nameRequired": "A name is required",
       "success": "Desktop updated",

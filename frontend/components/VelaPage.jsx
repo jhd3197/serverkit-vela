@@ -127,7 +127,7 @@ export default function VelaPage() {
             title: t('vela.delete.title', 'Delete "{{name}}"?', { name: instance.name }),
             message: t(
                 'vela.delete.message',
-                'This removes the container, its data disk and the domain route through ServerKit. Backups already taken are kept. This cannot be undone.'),
+                "This removes the container, its data disk and the domain route through ServerKit. Backups already taken are kept. This can't be undone."),
             confirmText: t('vela.delete.confirm', 'Delete desktop'),
             variant: 'danger',
         });
@@ -280,14 +280,14 @@ export default function VelaPage() {
                 </div>
             </div>
 
-            {loading && <p className="vela-ext__muted">{t('vela.page.loading', 'Loading desktops...')}</p>}
+            {loading && <p className="vela-ext__muted">{t('vela.page.loading', 'Loading desktops…')}</p>}
             {!loading && error && <p className="vela-ext__error">{error}</p>}
 
             {!loading && !error && instances.length === 0 && (
                 <div className="vela-ext__empty">
                     <h3>{t('vela.empty.title', 'No desktops yet')}</h3>
                     <p className="vela-ext__muted">
-                        {t('vela.empty.message', 'No desktops yet — create your first Vela. The "Create your first desktop" walkthrough walks you through it.')}
+                        {t('vela.empty.message', 'Create your first Vela desktop. The "Create your first desktop" walkthrough walks you through it.')}
                     </p>
                     <button
                         type="button"
@@ -309,7 +309,7 @@ export default function VelaPage() {
                     onRowClick={(instance) => navigate(`/vela/${instance.slug}`)}
                     keyboardNav
                     emptyTitle={t('vela.empty.title', 'No desktops yet')}
-                    emptyMessage={t('vela.empty.message', 'No desktops yet — create your first Vela. The "Create your first desktop" walkthrough walks you through it.')}
+                    emptyMessage={t('vela.empty.message', 'Create your first Vela desktop. The "Create your first desktop" walkthrough walks you through it.')}
                 />
             )}
 
@@ -332,7 +332,7 @@ export default function VelaPage() {
                             value={form.server_id}
                             onChange={(event) => setForm({ ...form, server_id: event.target.value })}
                         >
-                            <option value="local">{t('vela.create.thisServer', 'This server (panel host)')}</option>
+                            <option value="local">{t('vela.create.thisServer', 'Panel server')}</option>
                             {(servers || []).map((server) => (
                                 <option key={server.id} value={server.id} disabled>
                                     {server.name} — {t('vela.create.remoteSoon', 'remote deploys are not supported yet')}
@@ -381,7 +381,7 @@ export default function VelaPage() {
                             disabled={creating}
                         >
                             {creating
-                                ? t('vela.create.creating', 'Creating...')
+                                ? t('vela.create.creating', 'Creating…')
                                 : t('vela.create.submit', 'Create desktop')}
                         </button>
                         <button
